@@ -1,0 +1,44 @@
+import os
+
+from dotenv import load_dotenv
+from langchain_groq import ChatGroq
+
+
+load_dotenv()
+
+
+# -----------------------------
+# LLM Configuration
+# -----------------------------
+
+LLM_MODEL = os.getenv(
+    "LLM_MODEL",
+    "openai/gpt-oss-120b",
+)
+
+LLM_TEMPERATURE = float(
+    os.getenv(
+        "LLM_TEMPERATURE",
+        "0.7",
+    )
+)
+
+LLM_MAX_RETRIES = int(
+    os.getenv(
+        "LLM_MAX_RETRIES",
+        "2",
+    )
+)
+
+
+# -----------------------------
+# Groq LLM
+# -----------------------------
+
+llm_model = ChatGroq(
+    model=LLM_MODEL,
+    api_key=os.getenv("GROQ_API_KEY"),
+    temperature=LLM_TEMPERATURE,
+    max_retries=LLM_MAX_RETRIES,
+)
+

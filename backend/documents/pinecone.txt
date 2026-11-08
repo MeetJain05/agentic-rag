@@ -1,0 +1,4 @@
+Pinecone is the managed vector database used by this project.
+
+Documents are converted into embeddings and stored in the Pinecone
+vector database so that relevant information can be retrieved later.
