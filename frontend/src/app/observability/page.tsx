@@ -160,7 +160,11 @@ export default function ObservabilityPage() {
   }, []);
 
   useEffect(() => {
-    loadObservability();
+    const timeoutId = window.setTimeout(() => {
+      void loadObservability();
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
   }, [loadObservability]);
 
   const handleRefresh = async () => {

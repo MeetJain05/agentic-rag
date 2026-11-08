@@ -227,7 +227,11 @@ export default function EvaluationPage() {
   }
 
   useEffect(() => {
-    loadEvaluation();
+    const timeoutId = window.setTimeout(() => {
+      void loadEvaluation();
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
   }, []);
 
   const summary =
