@@ -46,28 +46,6 @@ PINECONE_EMBED_MODEL = os.getenv(
     "multilingual-e5-large",
 )
 
-def _flag(name: str, default: str) -> bool:
-    return os.getenv(name, default).lower() in {"true", "1", "yes"}
-
-
-# PDF parsing: "pymupdf" (Markdown with headings/lists) or "pypdf"
-# (plain text). Falls back to pypdf if PyMuPDF is missing or fails.
-#
-# Defaults are sized for small hosts (Render free tier: 512 MB, ~0.1 CPU).
-# Measured on a 60-page PDF:
-#   pymupdf, layout off, tables off   ~65 MB peak,   ~3 s   (default)
-#   pymupdf, tables on                ~71 MB peak,  ~20 s
-#   pymupdf, layout model on         ~316 MB peak,  ~38 s
-#   pypdf                             ~84 MB peak,   ~3 s
-PDF_PARSER = os.getenv("PDF_PARSER", "pymupdf").strip().lower()
-PDF_TABLES = _flag("PDF_TABLES", "false")
-PDF_LAYOUT_MODEL = _flag("PDF_LAYOUT_MODEL", "false")
-
-# OCR for image-only PDF pages. CPU-heavy and needs the Tesseract
-# binary (Docker: apt-get install tesseract-ocr), so it is opt-in.
-PDF_OCR = _flag("PDF_OCR", "false")
-PDF_OCR_LANGUAGE = os.getenv("PDF_OCR_LANGUAGE", "eng")
-
 # Local state: document registry, keyword index, HITL checkpoints.
 DATA_DIR = os.getenv("DATA_DIR", "./data")
 

@@ -1,42 +1,98 @@
 [
   {
-    "question": "What is LangGraph used for?",
+    "question": "What is LangGraph used for in this project?",
+    "category": "document",
     "expected_route": "local",
     "expected_answer_contains": ["retrieval", "generation"]
   },
   {
-    "question": "What does this project use Chroma for?",
+    "question": "Which vector database does the project use?",
+    "category": "document",
     "expected_route": "local",
-    "expected_answer_contains": ["vector"]
+    "expected_answer_contains": ["Pinecone"]
   },
   {
-    "question": "What is the purpose of document retrieval in this project?",
+    "question": "Which document formats can users upload?",
+    "category": "list",
     "expected_route": "local",
-    "expected_answer_contains": ["retrieval"]
+    "expected_answer_contains": ["PDF", "DOCX", "TXT", "Markdown"]
   },
   {
-    "question": "What happens when retrieved documents are not relevant?",
+    "question": "How does the system avoid ingesting the same document twice?",
+    "category": "document",
+    "expected_route": "local",
+    "expected_answer_contains": ["SHA-256|hash"]
+  },
+  {
+    "question": "What happens when none of the retrieved documents are relevant?",
+    "category": "document",
     "expected_route": "local",
     "expected_answer_contains": ["web"]
   },
   {
+    "question": "What is the maximum number of generation retries?",
+    "category": "document",
+    "expected_route": "local",
+    "expected_answer_contains": ["two|2"]
+  },
+  {
+    "question": "Which service does the project use for web search?",
+    "category": "document",
+    "expected_route": "local",
+    "expected_answer_contains": ["Tavily"]
+  },
+  {
+    "question": "How do I turn on LangSmith tracing?",
+    "category": "document",
+    "expected_route": "local",
+    "expected_answer_contains": ["LANGSMITH_TRACING"]
+  },
+  {
+    "question": "List every check the workflow runs after it generates an answer.",
+    "category": "list",
+    "expected_route": "local",
+    "expected_answer_contains": ["hallucination|grounded", "address|answer grad"]
+  },
+  {
+    "question": "What metrics does the evaluation tracker calculate?",
+    "category": "list",
+    "expected_route": "local",
+    "expected_answer_contains": ["latency", "grounded", "quality", "retries|retry"]
+  },
+  {
     "question": "What is the capital of France?",
+    "category": "web",
     "expected_route": "web",
     "expected_answer_contains": ["Paris"]
   },
   {
-    "question": "What is quantum computing?",
+    "question": "Who won the 2022 FIFA World Cup?",
+    "category": "web",
     "expected_route": "web",
-    "expected_answer_contains": ["quantum"]
+    "expected_answer_contains": ["Argentina"]
   },
   {
-    "question": "Who is the current president of the United States?",
+    "question": "What is the latest stable release of Python?",
+    "category": "web",
     "expected_route": "web",
+    "expected_answer_contains": ["3."]
+  },
+  {
+    "question": "What is quantum computing?",
+    "category": "web",
+    "expected_route": "web",
+    "expected_answer_contains": ["qubit|quantum"]
+  },
+  {
+    "question": "hi",
+    "category": "greeting",
+    "expected_route": "greeting",
     "expected_answer_contains": []
   },
   {
-    "question": "What is the latest Python version?",
-    "expected_route": "web",
-    "expected_answer_contains": ["Python"]
+    "question": "thanks a lot!",
+    "category": "greeting",
+    "expected_route": "greeting",
+    "expected_answer_contains": []
   }
 ]

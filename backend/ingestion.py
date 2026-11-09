@@ -17,11 +17,6 @@ from backend import store
 from backend.config import (
     CHUNK_OVERLAP,
     CHUNK_SIZE,
-    PDF_LAYOUT_MODEL,
-    PDF_OCR,
-    PDF_OCR_LANGUAGE,
-    PDF_PARSER,
-    PDF_TABLES,
     PINECONE_NAMESPACE,
     SUPPORTED_EXTENSIONS,
 )
@@ -52,94 +47,12 @@ def calculate_document_id(file_path: str) -> str:
     return file_hash.hexdigest()
 
 
-def _ocr_empty_pages(path: Path, pages: List[Dict[str, Any]]) -> None:
-    """
-    OCR only the pages that have no text layer (scanned pages), one
-    page at a time to keep memory flat. No-op without Tesseract.
-    """
-
-    import pymupdf
-
-    try:
-        pymupdf.get_tessdata()
-    except Exception:
-        print("---TESSERACT NOT FOUND, SKIPPING OCR---")
-        return
-
-    with pymupdf.open(str(path)) as pdf:
-        for position, page in enumerate(pages):
-            if str(page.get("text", "")).strip():
-                continue
-            try:
-                textpage = pdf[position].get_textpage_ocr(
-                    language=PDF_OCR_LANGUAGE,
-                    dpi=200,
-                    full=True,
-                )
-                page["text"] = pdf[position].get_text(textpage=textpage)
-                print(f"---OCR PAGE {position + 1}: {path.name}---")
-            except Exception as exc:
-                print(f"---OCR FAILED ON PAGE {position + 1}: {exc}---")
-
-
-def _load_pdf_pymupdf(path: Path) -> List[Document]:
-    """
-    Layout-aware PDF extraction with PyMuPDF4LLM.
-
-    Produces Markdown per page, so headings, lists and tables survive
-    (pypdf flattens them into one run of text). Pages without a text
-    layer are OCR'd with Tesseract when it is installed.
-    """
-
-    import pymupdf4llm
-
-    # The layout model costs ~250 MB extra; keep it off on small hosts.
-    pymupdf4llm.use_layout(PDF_LAYOUT_MODEL)
-
-    options: Dict[str, Any] = {
-        "page_chunks": True,
-        "show_progress": False,
-    }
-    if PDF_LAYOUT_MODEL:
-        options.update(use_ocr=PDF_OCR, ocr_language=PDF_OCR_LANGUAGE)
-    elif not PDF_TABLES:
-        # Table detection is ~85% of parse time; opt-in via PDF_TABLES.
-        options["table_strategy"] = None
-
-    pages = pymupdf4llm.to_markdown(str(path), **options)
-
-    if PDF_OCR and not PDF_LAYOUT_MODEL:
-        _ocr_empty_pages(path, pages)
-
-    documents = []
-    for position, page in enumerate(pages):
-        meta = page.get("metadata", {}) or {}
-        page_number = int(meta.get("page_number") or position + 1)
-        documents.append(
-            Document(
-                page_content=str(page.get("text", "")),
-                metadata={
-                    # Same convention as PyPDFLoader: 0-based page,
-                    # 1-based human-readable label.
-                    "page": page_number - 1,
-                    "page_label": str(page_number),
-                    "total_pages": int(meta.get("page_count") or len(pages)),
-                    "title": str(meta.get("title") or ""),
-                    "parser": "pymupdf4llm",
-                },
-            )
-        )
-    return documents
-
-
 def _load_pdf(path: Path) -> List[Document]:
-    if PDF_PARSER == "pymupdf":
-        try:
-            return _load_pdf_pymupdf(path)
-        except ImportError:
-            print("---PYMUPDF4LLM NOT INSTALLED, USING PYPDF---")
-        except Exception as exc:
-            print(f"---PYMUPDF FAILED ({exc}), USING PYPDF---")
+    """
+    Extract PDF text with pypdf (BSD-licensed, pure Python, light on
+    memory). Image-only pages (scans) have no text layer and come back
+    empty; those pages are skipped later.
+    """
 
     documents = PyPDFLoader(str(path)).load()
     for document in documents:
