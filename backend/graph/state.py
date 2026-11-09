@@ -15,6 +15,9 @@ class GraphState(TypedDict, total=False):
 
     router_context: str
 
+    # Rewritten retrieval query used on retries (question stays as-is).
+    search_query: str
+
     candidate_documents: List[Document]
     documents: List[Document]
 

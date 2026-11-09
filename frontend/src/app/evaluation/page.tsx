@@ -247,8 +247,8 @@ export default function EvaluationPage() {
     };
 
   return (
-    <main className="min-h-screen bg-[#020617] text-white">
-      <div className="mx-auto max-w-[1800px] px-5 py-8 sm:px-8 lg:px-10">
+    <main className="min-h-full text-ink">
+      <div className="mx-auto max-w-[1800px] px-2 py-6 sm:px-4 lg:px-6">
         {/* Header */}
         <div className="flex flex-col gap-6 border-b border-slate-800 pb-10 lg:flex-row lg:items-end lg:justify-between">
           <div>

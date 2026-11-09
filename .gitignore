@@ -14,7 +14,7 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
+/lib/
 lib64/
 parts/
 sdist/
@@ -310,3 +310,5 @@ evaluation/ragas_results.json
 evaluation/final_report.json
 observability_history.jsonl
 uploads/
+# Local state (document registry, keyword index, HITL checkpoints)
+data/

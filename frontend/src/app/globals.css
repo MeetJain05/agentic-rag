@@ -1,26 +1,105 @@
 @import "tailwindcss";
 
+/*
+ * Design tokens — warm, cinematic dark UI.
+ * Near-black with a brown undertone, glassy panels, one orange accent.
+ */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --bg: #0b0908;
+  --surface: rgba(26, 21, 19, 0.72);
+  --surface-solid: #161210;
+  --surface-raised: rgba(44, 37, 33, 0.6);
+  --line: rgba(255, 236, 222, 0.08);
+  --line-strong: rgba(255, 236, 222, 0.14);
+  --text: #f5f0ea;
+  --muted: #a69c93;
+  --faint: #6e655e;
+  --accent: #ff7a2f;
+  --accent-strong: #ff9152;
+  --accent-soft: rgba(255, 122, 47, 0.14);
+  --success: #4ade80;
+  --warning: #fbbf24;
+  --danger: #f87171;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-solid: var(--surface-solid);
+  --color-surface-raised: var(--surface-raised);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-ink: var(--text);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-accent: var(--accent);
+  --color-accent-strong: var(--accent-strong);
+  --color-accent-soft: var(--accent-soft);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/*
+ * Re-map Tailwind's slate scale to warm neutrals so pages that still
+ * use slate-* utilities (Evaluation, Observability) match the theme.
+ */
+@theme {
+  --color-slate-50: #faf7f4;
+  --color-slate-100: #f3eee9;
+  --color-slate-200: #e4ddd6;
+  --color-slate-300: #cfc6be;
+  --color-slate-400: #a69c93;
+  --color-slate-500: #7d736b;
+  --color-slate-600: #5a524c;
+  --color-slate-700: #3d3531;
+  --color-slate-800: #2a2320;
+  --color-slate-900: #1a1513;
+  --color-slate-950: #110d0c;
+}
+
+html {
+  color-scheme: dark;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+}
+
+/* Ambient warm glow behind the workspace (reference: blurred hero still). */
+.ambient {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    radial-gradient(60% 45% at 52% 4%, rgba(255, 122, 47, 0.22), transparent 70%),
+    radial-gradient(35% 30% at 70% 12%, rgba(196, 84, 30, 0.18), transparent 70%),
+    radial-gradient(40% 40% at 20% 100%, rgba(120, 60, 30, 0.12), transparent 70%);
+}
+
+.glass {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+}
+
+.scroll-thin {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 236, 222, 0.12) transparent;
+}
+
+@keyframes indeterminate {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(250%); }
+}
+
+.progress-indeterminate {
+  animation: indeterminate 1.3s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .progress-indeterminate { animation: none; }
 }

@@ -19,3 +19,8 @@ uvicorn[standard]
 langchain-groq
 python-multipart
 pinecone
+pymupdf4llm
+langgraph-checkpoint-sqlite
+langgraph-checkpoint-postgres
+psycopg[binary]
+psycopg-pool

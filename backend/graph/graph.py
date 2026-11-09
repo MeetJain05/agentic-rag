@@ -1,6 +1,5 @@
 from typing import Any, Dict
 
-from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph import END, START, StateGraph
 
 from backend.graph.chains.answer_grader import answer_grader
@@ -8,6 +7,7 @@ from backend.graph.chains.hallucination_grader import (
     hallucination_grader,
 )
 from backend.graph.chains.router import question_router
+from backend.graph.checkpoint import create_checkpointer
 from backend.graph.context import format_documents
 
 from backend.graph.nodes.build_response import build_response
@@ -18,6 +18,7 @@ from backend.graph.nodes.output_security import (
     output_security_check,
 )
 from backend.graph.nodes.retrieve import retrieve
+from backend.graph.nodes.transform_query import transform_query
 from backend.graph.nodes.security import (
     route_after_security,
     security_check,
@@ -288,6 +289,20 @@ def decide_after_evaluation(
     return "not useful"
 
 
+def decide_retry_strategy(
+    state: GraphState,
+) -> str:
+    """
+    Local-route retries rewrite the query and search again; web-route
+    retries regenerate from the web evidence already gathered.
+    """
+
+    if state.get("route") == "local":
+        return "rewrite"
+
+    return "regenerate"
+
+
 def decide_web_search_approval(
     state: GraphState,
 ) -> str:
@@ -346,6 +361,11 @@ workflow.add_node(
 workflow.add_node(
     "increment_retry",
     increment_retry,
+)
+
+workflow.add_node(
+    "transform_query",
+    transform_query,
 )
 
 workflow.add_node(
@@ -492,9 +512,18 @@ workflow.add_conditional_edges(
     },
 )
 
-workflow.add_edge(
+workflow.add_conditional_edges(
     "increment_retry",
-    "generate",
+    decide_retry_strategy,
+    {
+        "rewrite": "transform_query",
+        "regenerate": "generate",
+    },
+)
+
+workflow.add_edge(
+    "transform_query",
+    "retrieve",
 )
 
 
@@ -518,11 +547,9 @@ workflow.add_edge(
 )
 
 
-# Development checkpointer.
-#
-# For production deployment this should eventually be replaced
-# by a persistent checkpointer such as PostgreSQL.
-checkpointer = InMemorySaver()
+# Persistent checkpointer (Postgres > SQLite > memory); see
+# backend/graph/checkpoint.py. Needed to resume after HITL approval.
+checkpointer = create_checkpointer()
 
 
 app = workflow.compile(

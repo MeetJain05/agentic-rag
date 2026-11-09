@@ -4,10 +4,12 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List
 
+# backend/ (for data files) and the repo root (for `backend.*` imports).
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
+REPO_ROOT = PROJECT_ROOT.parent
 
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
 from ragas import EvaluationDataset, SingleTurnSample, evaluate
 from ragas.metrics import (
@@ -15,9 +17,12 @@ from ragas.metrics import (
     faithfulness,
 )
 
-from graph.chains.generation import generation_chain
+from backend.graph.chains.generation import generation_chain
 from backend.retrieval import retriever
-from backend.model import embed_model, llm_model
+from backend.model import embed_model, grader_llm_model
+
+# Deterministic judge for RAGAS metrics.
+llm_model = grader_llm_model
 
 
 DATASET_FILE = (

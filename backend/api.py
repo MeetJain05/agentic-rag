@@ -14,6 +14,7 @@ from typing import Any, Dict, List, Optional
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from langgraph.types import Command
@@ -24,7 +25,10 @@ from backend.ingestion import (
     build_vectorstore,
     delete_document,
     list_documents,
+    sync_registry_from_pinecone,
 )
+from backend import store
+from backend.retrieval import get_pinecone_index
 
 from backend.observability import (
     RunObserver,
@@ -35,6 +39,20 @@ from backend.observability import (
 )
 
 from backend.graph.graph import app as rag_app
+from backend.graph.graph import checkpointer as rag_checkpointer
+
+
+def forget_thread(thread_id: str) -> None:
+    """
+    Drop checkpoints for a finished run. Only runs paused for HITL
+    approval need saved state; keeping every finished thread would
+    grow the checkpoint DB forever (bad on free-tier Postgres).
+    """
+
+    try:
+        rag_checkpointer.delete_thread(thread_id)
+    except Exception as exc:
+        print(f"---CHECKPOINT CLEANUP FAILED: {exc}---")
 
 
 load_dotenv()
@@ -56,11 +74,6 @@ MAX_UPLOAD_SIZE_MB = int(
 MAX_UPLOAD_SIZE_BYTES = (
     MAX_UPLOAD_SIZE_MB * 1024 * 1024
 )
-
-OBSERVABILITY_FILE = Path(
-    "./observability_history.jsonl"
-)
-
 
 # ============================================================================
 # FASTAPI
@@ -307,226 +320,6 @@ def record_evaluation(
 
 
 # ============================================================================
-# OBSERVABILITY HELPERS
-# ============================================================================
-
-
-def load_observability_history() -> List[Dict[str, Any]]:
-
-    if not OBSERVABILITY_FILE.exists():
-        return []
-
-    records: List[Dict[str, Any]] = []
-
-    try:
-
-        with open(
-            OBSERVABILITY_FILE,
-            "r",
-            encoding="utf-8",
-        ) as file:
-
-            for line in file:
-
-                line = line.strip()
-
-                if not line:
-                    continue
-
-                try:
-
-                    record = json.loads(line)
-
-                    if isinstance(
-                        record,
-                        dict,
-                    ):
-                        records.append(record)
-
-                except json.JSONDecodeError:
-
-                    continue
-
-    except OSError:
-
-        return []
-
-    return records
-
-
-def clear_observability_history() -> None:
-
-    if OBSERVABILITY_FILE.exists():
-        OBSERVABILITY_FILE.unlink()
-
-
-def calculate_observability_summary(
-    records: List[Dict[str, Any]],
-) -> Dict[str, Any]:
-
-    total_runs = len(records)
-
-    if total_runs == 0:
-
-        return {
-            "total_runs": 0,
-            "successful_runs": 0,
-            "failed_runs": 0,
-            "success_rate": 0.0,
-            "average_latency_seconds": 0.0,
-            "average_retries": 0.0,
-            "grounded_rate": 0.0,
-            "answer_quality_rate": 0.0,
-            "local_route_count": 0,
-            "web_route_count": 0,
-            "hitl_approved_count": 0,
-            "hitl_rejected_count": 0,
-        }
-
-    successful_runs = sum(
-        1
-        for record in records
-        if bool(
-            record.get(
-                "success",
-                False,
-            )
-        )
-    )
-
-    failed_runs = (
-        total_runs - successful_runs
-    )
-
-    latencies = [
-        float(
-            record.get(
-                "latency_seconds",
-                0.0,
-            )
-            or 0.0
-        )
-        for record in records
-    ]
-
-    retries = [
-        float(
-            record.get(
-                "retry_count",
-                0,
-            )
-            or 0
-        )
-        for record in records
-    ]
-
-    grounded_count = sum(
-        1
-        for record in records
-        if bool(
-            record.get(
-                "grounded",
-                False,
-            )
-        )
-    )
-
-    answer_quality_count = sum(
-        1
-        for record in records
-        if bool(
-            record.get(
-                "answers_question",
-                False,
-            )
-        )
-    )
-
-    local_route_count = sum(
-        1
-        for record in records
-        if str(
-            record.get(
-                "route",
-                "",
-            )
-        ).lower()
-        in {
-            "local",
-            "vectorstore",
-        }
-    )
-
-    web_route_count = sum(
-        1
-        for record in records
-        if str(
-            record.get(
-                "route",
-                "",
-            )
-        ).lower()
-        in {
-            "web",
-            "websearch",
-        }
-    )
-
-    hitl_approved_count = sum(
-        1
-        for record in records
-        if str(
-            record.get(
-                "hitl_status",
-                "",
-            )
-        ).lower()
-        == "approved"
-    )
-
-    hitl_rejected_count = sum(
-        1
-        for record in records
-        if str(
-            record.get(
-                "hitl_status",
-                "",
-            )
-        ).lower()
-        == "rejected"
-    )
-
-    return {
-        "total_runs": total_runs,
-        "successful_runs": successful_runs,
-        "failed_runs": failed_runs,
-        "success_rate": (
-            successful_runs / total_runs
-        ),
-        "average_latency_seconds": (
-            sum(latencies) / len(latencies)
-            if latencies
-            else 0.0
-        ),
-        "average_retries": (
-            sum(retries) / len(retries)
-            if retries
-            else 0.0
-        ),
-        "grounded_rate": (
-            grounded_count / total_runs
-        ),
-        "answer_quality_rate": (
-            answer_quality_count / total_runs
-        ),
-        "local_route_count": local_route_count,
-        "web_route_count": web_route_count,
-        "hitl_approved_count": hitl_approved_count,
-        "hitl_rejected_count": hitl_rejected_count,
-    }
-
-
-# ============================================================================
 # ROOT / HEALTH
 # ============================================================================
 
@@ -540,16 +333,43 @@ def root() -> Dict[str, str]:
     }
 
 
+@api.on_event("startup")
+def ensure_document_registry() -> None:
+    """
+    Rebuild the local registry/keyword index from Pinecone when it is
+    empty (first run, new container, ephemeral disk such as Render's
+    free tier, which is wiped on every restart/spin-down).
+
+    Runs in a background thread so the server binds its port and
+    answers health checks immediately; uploads stay safe meanwhile
+    because duplicate detection falls back to Pinecone.
+    """
+
+    def _sync() -> None:
+        try:
+            if store.document_count() == 0:
+                synced = sync_registry_from_pinecone()
+                print(f"---REGISTRY SYNCED FROM PINECONE: {synced} DOCUMENTS---")
+        except Exception as exc:
+            # Startup must not fail if Pinecone is briefly unreachable.
+            print(f"---REGISTRY SYNC SKIPPED: {exc}---")
+
+    import threading
+
+    threading.Thread(target=_sync, name="registry-sync", daemon=True).start()
+
+
 @api.get("/health")
 def health() -> Dict[str, Any]:
 
     try:
-
-        documents = list_documents()
+        # One cheap stats call proves Pinecone is reachable; the
+        # document count comes from the local registry.
+        get_pinecone_index().describe_index_stats()
 
         return {
             "status": "healthy",
-            "documents": len(documents),
+            "documents": store.document_count(),
             "evaluation_enabled": True,
             "observability_enabled": True,
         }
@@ -669,6 +489,24 @@ def get_documents() -> Dict[str, Any]:
                 f"{exc}"
             ),
         )
+
+
+@api.post("/documents/sync")
+def sync_documents() -> Dict[str, Any]:
+    """Rebuild the local registry + keyword index from Pinecone."""
+
+    try:
+        synced = sync_registry_from_pinecone()
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to sync documents: {exc}",
+        )
+
+    return {
+        "message": f"Synced {synced} document(s) from Pinecone.",
+        "documents": list_documents(),
+    }
 
 
 @api.post("/upload")
@@ -813,17 +651,35 @@ async def upload_documents(
                 "rejected": rejected,
             }
 
-        build_vectorstore(
+        ingestion = await run_in_threadpool(
+            build_vectorstore,
             [
                 item["temp_path"]
                 for item in uploaded
-            ]
+            ],
         )
+        ingestion = ingestion or {}
+
+        added = ingestion.get("added", [])
+        message_parts = [f"Indexed {len(added)} file(s)."]
+        if ingestion.get("skipped_existing"):
+            message_parts.append(
+                f"{len(ingestion['skipped_existing'])} already in the knowledge base."
+            )
+        if ingestion.get("no_text"):
+            message_parts.append(
+                "No extractable text (scanned PDF?): "
+                + ", ".join(ingestion["no_text"])
+            )
+        if ingestion.get("failed"):
+            message_parts.append(
+                "Could not be parsed: "
+                + ", ".join(ingestion["failed"])
+            )
 
         return {
-            "message": (
-                f"Successfully processed {len(uploaded)} file(s)."
-            ),
+            "message": " ".join(message_parts),
+            "ingestion": ingestion,
             "uploaded": [
                 {
                     "file_name": item["file_name"],
@@ -833,7 +689,7 @@ async def upload_documents(
                 for item in uploaded
             ],
             "rejected": rejected,
-            "documents": list_documents(),
+            "documents": await run_in_threadpool(list_documents),
         }
 
     except ValueError as exc:
@@ -936,7 +792,10 @@ async def chat(request: ChatRequest):
             }
         }
 
-        result = rag_app.invoke(
+        # The graph is synchronous (LLM + Pinecone calls); running it
+        # directly in an async endpoint would block every other request.
+        result = await run_in_threadpool(
+            rag_app.invoke,
             {
                 "question": question,
             },
@@ -1091,6 +950,8 @@ async def chat(request: ChatRequest):
             result=result,
             latency_seconds=latency,
         )
+
+        forget_thread(thread_id)
 
         return {
             "status": "completed",
@@ -1251,6 +1112,8 @@ def chat_approval(
             latency_seconds=latency,
         )
 
+        forget_thread(thread_id)
+
         return {
             "status": "completed",
             "thread_id": thread_id,
@@ -1406,7 +1269,7 @@ def clear_evaluation() -> Dict[str, str]:
 
 
 @api.get("/observability")
-async def get_observability():
+def get_observability():
     records = load_observability_history()
 
     return {
@@ -1414,15 +1277,6 @@ async def get_observability():
         "summary": calculate_observability_summary(
             records
         ),
-    }
-
-
-@api.delete("/observability")
-async def clear_observability():
-    clear_observability_history()
-
-    return {
-        "message": "Observability history cleared."
     }
 
 

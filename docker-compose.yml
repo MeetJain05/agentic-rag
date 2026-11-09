@@ -15,6 +15,7 @@ services:
 
     volumes:
       - ./uploads:/app/uploads
+      - ./data:/app/data
 
     security_opt:
       - no-new-privileges:true

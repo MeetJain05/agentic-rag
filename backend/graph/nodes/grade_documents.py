@@ -20,16 +20,21 @@ def grade_documents(state: GraphState) -> Dict[str, Any]:
 
     filtered_docs = []
 
-    for document in documents:
-
-        score = retrieval_grader.invoke(
+    # Grade all chunks concurrently instead of one LLM call at a time.
+    scores = retrieval_grader.batch(
+        [
             {
                 "question": question,
                 "document": document.page_content,
             }
-        )
+            for document in documents
+        ],
+        config={"max_concurrency": 4},
+    ) if documents else []
 
-        if score.binary_score.lower() == "yes":
+    for document, score in zip(documents, scores):
+
+        if str(score.binary_score).strip().lower() == "yes":
 
             print(
                 "---GRADE: DOCUMENT RELEVANT---"
