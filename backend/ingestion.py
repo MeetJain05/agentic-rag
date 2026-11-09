@@ -149,6 +149,21 @@ def build_vectorstore(
 
     document_chunks = split_documents(all_documents)
 
+    if not document_chunks:
+        file_names = ", ".join(
+            sorted(
+                {
+                    document.metadata.get("file_name", "document")
+                    for document in all_documents
+                }
+            )
+        )
+        raise ValueError(
+            "No readable text was found in "
+            f"{file_names}. Upload a text-based PDF or an OCR-processed "
+            "document."
+        )
+
     chunk_ids = []
 
     for index, document in enumerate(document_chunks):

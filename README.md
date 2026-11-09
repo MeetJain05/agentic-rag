@@ -261,6 +261,4 @@ source files and JSONL evaluation/
 observability history are still local application files; use object storage or
 a database if those records must survive service restarts and redeployments.
 
-## License
-
-Add the license that applies to your project before publishing it.
+Built by Meet Jain
