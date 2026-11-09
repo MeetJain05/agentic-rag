@@ -6,6 +6,11 @@ from typing import Any, Dict, List, Optional
 
 OBSERVABILITY_FILE = Path("./observability_history.jsonl")
 
+LOCAL_ROUTES = {"local", "vectorstore"}
+WEB_ROUTES = {"web", "websearch", "web_rejected"}
+# Excluded from grounded / answer-quality rates.
+NON_RAG_ROUTES = {"greeting", "security_blocked", "error"}
+
 
 class RunObserver:
     """
@@ -218,31 +223,44 @@ def calculate_observability_summary(
         for record in records
     )
 
+    # Quality rates only make sense for completed RAG answers: skip
+    # greetings and runs still waiting for web-search approval.
+    rag_records = [
+        record
+        for record in records
+        if record.get("route") not in NON_RAG_ROUTES
+        and record.get("hitl_status") != "pending"
+    ]
+    rag_total = len(rag_records) or 1
+
     grounded_count = sum(
         1
-        for record in records
+        for record in rag_records
         if record.get("grounded", False)
     )
 
     answer_quality_count = sum(
         1
-        for record in records
+        for record in rag_records
         if record.get(
             "answers_question",
             False,
         )
     )
 
+    # A web-routed run is logged twice (pending, then approved or
+    # rejected); count it once, on completion.
     local_route_count = sum(
         1
         for record in records
-        if record.get("route") == "vectorstore"
+        if record.get("route") in LOCAL_ROUTES
     )
 
     web_route_count = sum(
         1
         for record in records
-        if record.get("route") == "websearch"
+        if record.get("route") in WEB_ROUTES
+        and record.get("hitl_status") != "pending"
     )
 
     hitl_approved_count = sum(
@@ -280,12 +298,12 @@ def calculate_observability_summary(
         ),
 
         "grounded_rate": round(
-            grounded_count / total_runs,
+            grounded_count / rag_total,
             4,
         ),
 
         "answer_quality_rate": round(
-            answer_quality_count / total_runs,
+            answer_quality_count / rag_total,
             4,
         ),
 

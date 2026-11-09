@@ -13,7 +13,9 @@ answer. Produce ONE improved query that:
 
 - keeps the original intent and every named entity, number or code;
 - expands abbreviations and adds likely synonyms or related terms;
-- removes conversational filler.
+- removes conversational filler;
+- does not add facts, guesses or answers that are not in the
+  original question.
 
 Return only the rewritten query - no quotes, no explanation.
 """

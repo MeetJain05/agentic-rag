@@ -1,5 +1,6 @@
 from typing import Any, Dict
 
+from backend.graph.nodes.greeting import is_greeting
 from backend.graph.state import GraphState
 from backend.security.prompt_guard import check_prompt
 
@@ -59,5 +60,9 @@ def route_after_security(
 
     if state.get("security_status") == "blocked":
         return "blocked"
+
+    # Pure greetings/thanks/goodbyes need no documents or web search.
+    if is_greeting(state.get("question", "")):
+        return "greeting"
 
     return "allowed"

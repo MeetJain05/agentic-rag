@@ -17,6 +17,18 @@ The project has:
 - Tavily for web-search fallback.
 - Docker and Docker Compose configurations for local development.
 
+## Screenshots
+
+**Ask workspace**: question prompt, latest grounded answer, ingestion queue,
+pipeline activity and answer-quality rings.
+
+![Ask workspace](project_images/dashboard.png)
+
+**Evaluation**: grounded rate, answer quality, retrieval relevance, latency
+and per-request history.
+
+![Evaluation dashboard](project_images/evaluation.png)
+
 ## Workflow
 
 ```mermaid

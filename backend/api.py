@@ -62,10 +62,11 @@ load_dotenv()
 # CONFIGURATION
 # ============================================================================
 
+# Browsers send Origin without a trailing slash, so strip one if present.
 FRONTEND_URL = os.getenv(
     "FRONTEND_URL",
     "http://localhost:3000",
-)
+).strip().rstrip("/")
 
 MAX_UPLOAD_SIZE_MB = int(
     os.getenv("MAX_UPLOAD_SIZE_MB", "25")
@@ -292,6 +293,10 @@ def record_evaluation(
     error: str = "",
 ) -> None:
 
+    # Greetings aren't RAG answers; keep them out of quality metrics.
+    if normalise_route(result) == "greeting":
+        return
+
     try:
 
         tracker = EvaluationTracker()
@@ -336,9 +341,9 @@ def root() -> Dict[str, str]:
 @api.on_event("startup")
 def ensure_document_registry() -> None:
     """
-    Rebuild the local registry/keyword index from Pinecone when it is
-    empty (first run, new container, ephemeral disk such as Render's
-    free tier, which is wiped on every restart/spin-down).
+    Reconcile the local registry/keyword index with Pinecone on every
+    start: rebuilds it after a wiped disk (Render free tier) and drops
+    entries deleted from Pinecone elsewhere.
 
     Runs in a background thread so the server binds its port and
     answers health checks immediately; uploads stay safe meanwhile
@@ -347,9 +352,8 @@ def ensure_document_registry() -> None:
 
     def _sync() -> None:
         try:
-            if store.document_count() == 0:
-                synced = sync_registry_from_pinecone()
-                print(f"---REGISTRY SYNCED FROM PINECONE: {synced} DOCUMENTS---")
+            synced = sync_registry_from_pinecone()
+            print(f"---REGISTRY SYNCED FROM PINECONE: {synced} DOCUMENTS---")
         except Exception as exc:
             # Startup must not fail if Pinecone is briefly unreachable.
             print(f"---REGISTRY SYNC SKIPPED: {exc}---")
@@ -1111,6 +1115,31 @@ def chat_approval(
             result=result,
             latency_seconds=latency,
         )
+
+        # Log the completed approval/rejection so the HITL counters
+        # and web-route count reflect it.
+        try:
+            RunObserver(question).record(
+                route=normalise_route(result),
+                retrieved_documents=safe_int(
+                    result.get("retrieved_documents", 0)
+                ),
+                relevant_documents=safe_int(
+                    result.get("relevant_documents", 0)
+                ),
+                grounded=safe_bool(result.get("grounded", False)),
+                answers_question=safe_bool(
+                    result.get("answers_question", False)
+                ),
+                retry_count=safe_int(result.get("retry_count", 0)),
+                latency_seconds=latency,
+                sources=result.get("sources", []) or [],
+                success=True,
+                hitl_status=safe_str(result.get("hitl_status", "")),
+                hitl_reason=safe_str(result.get("hitl_reason", "")),
+            )
+        except Exception as exc:
+            print("WARNING: Observability recording failed:", str(exc))
 
         forget_thread(thread_id)
 

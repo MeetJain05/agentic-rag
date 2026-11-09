@@ -18,14 +18,19 @@ structured_llm_grader = llm.with_structured_output(GradeAnswer)
 
 
 system = """
-You are a grader assessing whether an answer addresses and resolves a user's question.
+You grade whether an AI answer addresses the user's question.
 
-Return a binary score:
-- true: the answer directly addresses and resolves the question.
-- false: the answer does not adequately address the question.
+Return true when the answer:
 
-Do not judge whether the answer is stylistically good.
-Focus only on whether the answer actually answers the user's question.
+- directly responds to what was asked; or
+- gives the information that is available and clearly states which
+  part could not be found (an honest partial answer counts).
+
+Return false when the answer is off-topic, evades the question, only
+restates it, or refuses without saying what is missing.
+
+Judge relevance and completeness only - not style, length or
+formatting, and not factual accuracy (that is checked separately).
 """
 
 
@@ -34,15 +39,8 @@ answer_prompt = ChatPromptTemplate.from_messages(
         ("system", system),
         (
             "human",
-            """
-User question:
-
-{question}
-
-LLM generation:
-
-{generation}
-""",
+            "User question:\n{question}\n\n"
+            "AI answer:\n<answer>\n{generation}\n</answer>",
         ),
     ]
 )

@@ -7,9 +7,11 @@ from backend.security.content_guard import (
 )
 
 
-DEFAULT_MAX_CHARS = 6000
+# Sized for up to RETRIEVAL_K chunks widened with their neighbours
+# (~3 x CHUNK_SIZE each) while staying within Groq free-tier token limits.
+DEFAULT_MAX_CHARS = 10000
 
-DEFAULT_MAX_CHARS_PER_DOCUMENT = 2000
+DEFAULT_MAX_CHARS_PER_DOCUMENT = 3200
 
 
 def format_documents(

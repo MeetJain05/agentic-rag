@@ -173,6 +173,35 @@ def has_document(document_id: str) -> bool:
     return row is not None
 
 
+def get_chunks_by_index(
+    document_id: str,
+    indices: Iterable[int],
+) -> Dict[int, str]:
+    """
+    Return {chunk_index: text} for the requested chunks of a document.
+
+    Keyed on the chunk_index metadata rather than the chunk id, so it
+    works for every id format ever used at upload time.
+    """
+    wanted = set(indices)
+    if not document_id or not wanted:
+        return {}
+    with _lock:
+        rows = _connect().execute(
+            "SELECT metadata, text FROM chunks WHERE document_id = ?",
+            (document_id,),
+        ).fetchall()
+    found: Dict[int, str] = {}
+    for row in rows:
+        try:
+            index = int(float(json.loads(row["metadata"] or "{}")["chunk_index"]))
+        except (KeyError, TypeError, ValueError, json.JSONDecodeError):
+            continue
+        if index in wanted:
+            found[index] = row["text"]
+    return found
+
+
 _TOKEN = re.compile(r"\w+", re.UNICODE)
 
 
@@ -246,6 +275,14 @@ def sync_from_pinecone(records: Iterable[Dict[str, Any]]) -> int:
         )
         entry["chunks"].append(Document(page_content=text, metadata=metadata))
         entry["ids"].append(record["id"])
+
+    # Pinecone is the source of truth: drop local entries it no longer
+    # has (deleted elsewhere, or a wiped index) so the UI matches it.
+    # Only reached after every record was read, so a failed scan never
+    # empties the registry.
+    for document in list_documents():
+        if document["document_id"] not in grouped:
+            remove_document(document["document_id"])
 
     for document_id, entry in grouped.items():
         add_document(

@@ -1,6 +1,7 @@
 from typing import Any, Dict
 
 from backend.graph.chains.retrieval_grader import retrieval_grader
+from backend.graph.neighbors import expand_with_neighbors
 from backend.graph.state import GraphState
 
 
@@ -34,7 +35,7 @@ def grade_documents(state: GraphState) -> Dict[str, Any]:
 
     for document, score in zip(documents, scores):
 
-        if str(score.binary_score).strip().lower() == "yes":
+        if str(score.binary_score).strip().lower() in {"yes", "true"}:
 
             print(
                 "---GRADE: DOCUMENT RELEVANT---"
@@ -49,6 +50,9 @@ def grade_documents(state: GraphState) -> Dict[str, Any]:
             )
 
     relevant_documents = len(filtered_docs)
+
+    # Grade on small chunks (cheap); generate from wider windows.
+    filtered_docs = expand_with_neighbors(filtered_docs)
 
     web_search = relevant_documents == 0
 

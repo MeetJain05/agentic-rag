@@ -12,6 +12,7 @@ from backend.graph.context import format_documents
 
 from backend.graph.nodes.build_response import build_response
 from backend.graph.nodes.generate import generate
+from backend.graph.nodes.greeting import respond_greeting
 from backend.graph.nodes.grade_documents import grade_documents
 from backend.graph.nodes.increment_retry import increment_retry
 from backend.graph.nodes.output_security import (
@@ -187,6 +188,7 @@ def evaluate_generation(
     hallucination_score = (
         hallucination_grader.invoke(
             {
+                "question": question,
                 "documents": context,
                 "generation": generation,
             }
@@ -332,6 +334,11 @@ workflow.add_node(
     security_check,
 )
 
+workflow.add_node(
+    "greeting",
+    respond_greeting,
+)
+
 # Existing RAG nodes
 workflow.add_node(
     "retrieve_router_context",
@@ -421,8 +428,15 @@ workflow.add_conditional_edges(
     route_after_security,
     {
         "allowed": "retrieve_router_context",
+        "greeting": "greeting",
         "blocked": "build_response",
     },
+)
+
+# Small talk: answered directly, still passes output security.
+workflow.add_edge(
+    "greeting",
+    "output_security",
 )
 
 

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Markdown from "@/components/Markdown";
 import {
   ChangeEvent,
   DragEvent,
@@ -462,6 +463,7 @@ export default function Home() {
     [documents, filter]
   );
 
+  const isGreeting = response?.route === "greeting";
   const redactions = Array.isArray(response?.security_redactions)
     ? response.security_redactions.length
     : typeof response?.security_redactions === "number"
@@ -658,13 +660,17 @@ export default function Home() {
                   {submittedQuestion}
                 </p>
               )}
-              <div className="whitespace-pre-wrap text-[15px] leading-7 text-ink/90">
-                {getAnswer()}
+              <div className="text-[15px] leading-7 text-ink/90">
+                <Markdown>{getAnswer()}</Markdown>
               </div>
 
               <div className="mt-6 flex flex-wrap gap-2">
-                <Flag ok={response.grounded} label="Grounded" />
-                <Flag ok={response.answers_question} label="Answers question" />
+                {!isGreeting && (
+                  <>
+                    <Flag ok={response.grounded} label="Grounded" />
+                    <Flag ok={response.answers_question} label="Answers question" />
+                  </>
+                )}
                 {response.security_status && (
                   <span
                     title={response.security_reason || undefined}
@@ -678,6 +684,7 @@ export default function Home() {
               </div>
             </div>
 
+            {!isGreeting && (
             <div className="mt-3 grid grid-cols-2 gap-2.5 md:grid-cols-4">
               <Metric label="Retrieved" value={response.retrieved_documents ?? 0} />
               <Metric label="Relevant" value={response.relevant_documents ?? 0} />
@@ -691,6 +698,7 @@ export default function Home() {
                 }
               />
             </div>
+            )}
 
             {Array.isArray(response.sources) && response.sources.length > 0 && (
               <div className="mt-6">

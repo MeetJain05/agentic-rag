@@ -21,6 +21,10 @@ CHUNK_OVERLAP = int(os.getenv("CHUNK_OVERLAP", "150"))
 
 RETRIEVAL_K = int(os.getenv("RETRIEVAL_K", "4"))
 
+# After grading, widen each relevant chunk with this many chunks on
+# either side (same document) so lists split across chunks stay whole.
+NEIGHBOR_CHUNKS = int(os.getenv("NEIGHBOR_CHUNKS", "1"))
+
 # Reranking: RETRIEVAL_CANDIDATES chunks are gathered (dense + keyword)
 # and reranked down to RETRIEVAL_K with a Pinecone-hosted reranker.
 # Set PINECONE_RERANK_MODEL to an empty string to disable.
